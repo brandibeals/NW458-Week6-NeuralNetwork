@@ -10,8 +10,6 @@ Description: Developed for course MSDS 458 at Northwestern University
 ######################################
 
 # import packages
-#from tensorflow.keras import layers
-#from tensorflow.keras import models
 from keras.datasets import mnist
 from keras import models
 from keras import layers
@@ -22,6 +20,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
+import random
 
 # import data
 (train_pics, train_answers), (test_pics, test_answers) = mnist.load_data()
@@ -59,27 +58,27 @@ model.add(layers.Dropout(0.25))
 model.add(layers.Dense(64, activation='relu'))
 model.add(layers.Dense(10, activation='softmax'))
 model.compile(optimizer='rmsprop', loss='categorical_crossentropy', metrics=['accuracy'])
-#model.fit(train_pics, train_answers, epochs=5, batch_size=128)
+model.fit(train_pics, train_answers, epochs=5, batch_size=128)
 
 ######################################
 # SETUP MODEL MONITORING
 ######################################
 
 # tensorboard callback (https://keras.io/callbacks/#tensorboard)
-callbacks = TensorBoard(
-    log_dir='tensorboard_log_dir',
-    histogram_freq=1,
-    write_graph=True,
-    write_grads=True,
-    write_images=True
-)
-
-model.fit(train_pics, train_answers, 
-          epochs=5, 
-          batch_size=128, 
-          validation_split=0.2, 
-          verbose=1, 
-          callbacks=[callbacks])
+#callbacks = TensorBoard(
+#    log_dir='tensorboard_log_dir',
+#    histogram_freq=1,
+#    write_graph=True,
+#    write_grads=True,
+#    write_images=True
+#)
+#
+#model.fit(train_pics, train_answers, 
+#          epochs=5, 
+#          batch_size=128, 
+#          validation_split=0.2, 
+#          verbose=1, 
+#          callbacks=[callbacks])
 
 # in anaconda prompt change directory to working directory
 # type "tensorboard --logdir=./tensorboard_log_dir"
@@ -109,22 +108,13 @@ for i in range(0,60000):
     prob = model.predict_proba(num)
     a = prob[0][:]
     max_prob.append(max(a))
-    #print(max(a))
-    #print(pred[0])
-
-#print(max_prob)
-#print(record_id)
-
-plt.barh(record_id, max_prob)
 
 # create dataframe of max_prob records
 d = {'RecordID':record_id, 'MaximumProbability':max_prob}
 df = pd.DataFrame(d)
-sns.distplot(df['MaximumProbability'], bins=9)
 sns.distplot(df['MaximumProbability'], hist=True, kde=False, rug=False, bins=9)
 df_sort = df.sort_values(by=['MaximumProbability'])
-#df_sort.head(25)
-df_sort[df_sort.MaximumProbability <= 0.3]
+df_sort[df_sort.MaximumProbability <= 0.5]
 
 ######################################
 # UNDERSTAND LAYER DETAILS
@@ -259,7 +249,6 @@ d2 = {'RecordID':record_id2, 'MaximumProbability':max_prob2}
 df2 = pd.DataFrame(d2)
 sns.distplot(df2['MaximumProbability'], hist=True, kde=False, rug=False, bins=9)
 df_sort2 = df2.sort_values(by=['MaximumProbability'])
-#df_sort.head(25)
 df_sort2[df_sort2.MaximumProbability <= 0.5]
 
 # walk through an specific example
@@ -271,6 +260,54 @@ y_axis2 = np.arange(10).astype('str')
 x_axis2 = p2[0][:] #np.vectorize(probability)
 plt.barh(y_axis2, x_axis2)
 
+######################################
+# BUILD NEURAL NETWORK WITH SET SEED
+######################################
 
+random.seed(5)
 
+# convert CNN to depthwise separable convolution
+model3 = models.Sequential()
+model3.add(layers.SeparableConv2D(32, (3,3), activation='relu', input_shape=(28,28,1)))
+model3.add(layers.MaxPooling2D((2,2)))
+model3.add(layers.SeparableConv2D(64, (3,3), activation='relu'))
+model3.add(layers.MaxPooling2D((2,2)))
+model3.add(layers.SeparableConv2D(64, (3,3), activation='relu'))
+model3.summary()
+
+# build neural network output layers
+model3.add(layers.Flatten())
+model3.add(layers.Dropout(0.25))
+model3.add(layers.Dense(64, activation='relu'))
+model3.add(layers.Dense(10, activation='softmax'))
+model3.compile(optimizer='rmsprop', loss='categorical_crossentropy', metrics=['accuracy'])
+model3.fit(train_pics, train_answers, epochs=25, batch_size=128)
+
+# baseline test accuracy measure
+test_loss3, test_accuracy3 = model3.evaluate(test_pics, test_answers)
+print(test_accuracy3)
+
+# extract output from layers
+layer_outputs3 = [layer.output for layer in model3.layers]
+activation_model3 = models.Model(inputs=model3.input, outputs=layer_outputs3)
+
+# find low probability records
+max_prob3 = []
+record_id3 = []
+
+for i in range(0,60000):
+    record_id3.append(i)
+    num3 = np.expand_dims(train_pics[i], axis=0)
+    pred3 = model3.predict_classes(num3)
+    prob3 = model3.predict_proba(num3)
+    a3 = prob3[0][:]
+    max_prob3.append(max(a3))
+
+# create dataframe of max_prob records
+d3 = {'RecordID':record_id3, 'MaximumProbability':max_prob3}
+df3 = pd.DataFrame(d3)
+sns.distplot(df3['MaximumProbability'], hist=True, kde=False, rug=False, bins=9)
+df_sort3 = df3.sort_values(by=['MaximumProbability'])
+df_sort3[df_sort3.MaximumProbability <= 0.5]
+len(df_sort3[df_sort3.MaximumProbability <= 0.5])
 
